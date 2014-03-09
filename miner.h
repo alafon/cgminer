@@ -234,6 +234,11 @@ static inline int fsync (int fd)
 	DRIVER_ADD_COMMAND(modminer)
 
 #define ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
+	DRIVER_ADD_COMMAND(hexminera) \
+	DRIVER_ADD_COMMAND(hexminerb) \
+	DRIVER_ADD_COMMAND(hexminerc) \
+	DRIVER_ADD_COMMAND(hexminer8) \
+	DRIVER_ADD_COMMAND(hexmineru) \
 	DRIVER_ADD_COMMAND(bflsc) \
 	DRIVER_ADD_COMMAND(bitfury) \
 	DRIVER_ADD_COMMAND(cointerra) \
@@ -279,6 +284,16 @@ enum pool_strategy {
 	POOL_LOADBALANCE,
 	POOL_BALANCE,
 };
+#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINER8)
+
+enum default_hex_miner {
+	D_HEXA,
+	D_HEXB,
+	D_HEXC,
+	D_HEX8,
+};
+extern enum default_hex_miner default_hex_miner;
+#endif
 
 #define TOP_STRATEGY (POOL_BALANCE)
 
@@ -429,6 +444,12 @@ struct cgpu_info {
 	struct cg_usb_device *usbdev;
 	struct cg_usb_info usbinfo;
 	bool blacklisted;
+#endif
+#ifdef USE_HEXMINERU
+	// http://ww1.microchip.com/downloads/en/DeviceDoc/22288A.pdf pg 34
+	uint8_t cfg_spi[0x11];
+	// http://ww1.microchip.com/downloads/en/DeviceDoc/22288A.pdf pg 40
+	uint8_t cfg_gpio[0xf];
 #endif
 #if defined(USE_AVALON) || defined(USE_AVALON2)
 	struct work **works;
@@ -690,7 +711,7 @@ extern void _quit(int status);
  * So, e.g. use it to track down a deadlock - after a reproducable deadlock occurs
  * ... Of course if the API code itself deadlocks, it wont help :)
  */
-#define LOCK_TRACKING 1
+#define LOCK_TRACKING 0
 
 #if LOCK_TRACKING
 enum cglock_typ {
@@ -986,6 +1007,22 @@ extern char *opt_bab_options;
 #endif
 #ifdef USE_BITMINE_A1
 extern char *opt_bitmine_a1_options;
+#endif
+
+#ifdef USE_HEXMINERA
+extern char *opt_hexminera_options;
+#endif
+#ifdef USE_HEXMINERB
+extern char *opt_hexminerb_options;
+#endif
+#ifdef USE_HEXMINERC
+extern char *opt_hexminerc_options;
+#endif
+#ifdef USE_HEXMINER8
+extern char *opt_hexminer8_options;
+#endif
+#ifdef USE_HEXMINERU
+extern char *opt_hexmineru_options;
 #endif
 #ifdef USE_USBUTILS
 extern char *opt_usb_select;
@@ -1369,6 +1406,9 @@ extern void inc_hw_errors(struct thr_info *thr);
 extern bool test_nonce(struct work *work, uint32_t nonce);
 extern bool test_nonce_diff(struct work *work, uint32_t nonce, double diff);
 extern bool submit_tested_work(struct thr_info *thr, struct work *work);
+#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU)  || defined(USE_HEXMINER8)
+extern bool submit_tested_work_no_clone(struct thr_info *thr, struct work *work, bool diff1);
+#endif
 extern bool submit_nonce(struct thr_info *thr, struct work *work, uint32_t nonce);
 extern bool submit_noffset_nonce(struct thr_info *thr, struct work *work, uint32_t nonce,
 			  int noffset);
