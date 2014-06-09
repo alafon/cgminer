@@ -25,8 +25,8 @@
 #include "miner.h"
 #include "util.h"
 #include "klist.h"
-
-#if defined(USE_BFLSC) || defined(USE_AVALON) || defined(USE_AVALON2) || \
+#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || \
+	defined(USE_HEXMINER8) || defined(USE_HEXMINERM) || defined(USE_HEXMINER3) || defined(USE_BFLSC) || defined(USE_AVALON) || defined(USE_AVALON2) || \
 	defined(USE_HASHFAST) || defined(USE_BITFURY) || defined(USE_KLONDIKE) || \
 	defined(USE_KNC) || defined(USE_BAB) || defined(USE_DRILLBIT) || \
 	defined(USE_MINION) || defined(USE_COINTERRA) || defined(USE_BITMINE_A1) || \
@@ -39,7 +39,7 @@
 #endif
 
 // BUFSIZ varies on Windows and Linux
-#define TMPBUFSIZ	8192
+#define TMPBUFSIZ	8192 * 8
 
 // Number of requests to queue - normally would be small
 // However lots of PGA's may mean more
@@ -180,6 +180,27 @@ static const char *DEVICECODE = ""
 #endif
 #ifdef USE_BITMINE_A1
 			"BA1 "
+#endif
+#ifdef USE_HEXMINERA
+			"HEXa "
+#endif
+#ifdef USE_HEXMINERB
+			"HEXb "
+#endif
+#ifdef USE_HEXMINERC
+			"HEXc "
+#endif
+#ifdef USE_HEXMINERU
+			"HEXu "
+#endif
+#ifdef USE_HEXMINER8
+			"HEX8 "
+#endif
+#ifdef USE_HEXMINERM
+			"HEXM "
+#endif
+#ifdef USE_HEXMINER3
+			"HEX3 "
 #endif
 #ifdef USE_ICARUS
 			"ICA "
@@ -1508,12 +1529,14 @@ static void message(struct io_data *io_data, int messageid, int paramid, char *p
 
 #if LOCK_TRACKING
 
+FILE * pFile;
+
 #define LOCK_FMT_FFL " - called from %s %s():%d"
 
-#define LOCKMSG(fmt, ...)	fprintf(stderr, "APILOCK: " fmt "\n", ##__VA_ARGS__)
-#define LOCKMSGMORE(fmt, ...)	fprintf(stderr, "          " fmt "\n", ##__VA_ARGS__)
-#define LOCKMSGFFL(fmt, ...) fprintf(stderr, "APILOCK: " fmt LOCK_FMT_FFL "\n", ##__VA_ARGS__, file, func, linenum)
-#define LOCKMSGFLUSH() fflush(stderr)
+#define LOCKMSG(fmt, ...)	fprintf(pFile, "APILOCK: " fmt "\n", ##__VA_ARGS__)
+#define LOCKMSGMORE(fmt, ...)	fprintf(pFile, "          " fmt "\n", ##__VA_ARGS__)
+#define LOCKMSGFFL(fmt, ...) fprintf(pFile, "APILOCK: " fmt LOCK_FMT_FFL "\n", ##__VA_ARGS__, file, func, linenum)
+#define LOCKMSGFLUSH() fflush(pFile)
 
 typedef struct lockstat {
 	uint64_t lock_id;
@@ -1871,6 +1894,7 @@ void dsp_lock(LOCKINFO *info)
 
 void show_locks()
 {
+	pFile = fopen ("/tmp/cglocks","w");
 	LOCKLIST *list;
 
 	locklock();
@@ -1890,6 +1914,8 @@ void show_locks()
 	LOCKMSGFLUSH();
 
 	lockunlock();
+	fclose (pFile);
+
 }
 #endif
 
@@ -2672,6 +2698,8 @@ static void switchpool(struct io_data *io_data, __maybe_unused SOCKETTYPE c, cha
 	}
 
 	pool = pools[id];
+	if (pool->enabled == POOL_DISABLED)
+		enabled_pools++;
 	pool->enabled = POOL_ENABLED;
 	cg_runlock(&control_lock);
 	switch_pools(pool);
@@ -2789,7 +2817,7 @@ static void enablepool(struct io_data *io_data, __maybe_unused SOCKETTYPE c, cha
 		message(io_data, MSG_ALRENAP, id, NULL, isjson);
 		return;
 	}
-
+  enabled_pools++;
 	pool->enabled = POOL_ENABLED;
 	if (pool->prio < current_pool()->prio)
 		switch_pools(pool);
@@ -2938,7 +2966,8 @@ static void disablepool(struct io_data *io_data, __maybe_unused SOCKETTYPE c, ch
 		message(io_data, MSG_DISLASTP, id, NULL, isjson);
 		return;
 	}
-
+	enabled_pools--;
+  if (pool->enabled == POOL_ENABLED) enabled_pools--;
 	pool->enabled = POOL_DISABLED;
 	if (pool == current_pool())
 		switch_pools(NULL);
@@ -3182,14 +3211,38 @@ static int itemstats(struct io_data *io_data, int i, char *id, struct cgminer_st
 {
 	struct api_data *root = NULL;
 
+  #if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	char *enabled;
+	char *status;
+  char *is_hex = NULL;
+  
+  is_hex = strstr(id, "HEX");
+  #endif
 	root = api_add_int(root, "STATS", &i, false);
 	root = api_add_string(root, "ID", id, false);
+	#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	if(is_hex && cgpu) {
+		if (cgpu->deven != DEV_DISABLED)
+				enabled = (char *)YES;
+			else
+				enabled = (char *)NO;
+		 
+		  status = (char *)status2str(cgpu->status);
+			root = api_add_string(root, "Enabled", enabled, false);
+			root = api_add_string(root, "Status", status, false);
+	}
+	#endif
 	root = api_add_elapsed(root, "Elapsed", &(total_secs), false);
+	#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	if(is_hex == NULL) {
+	#endif
 	root = api_add_uint32(root, "Calls", &(stats->getwork_calls), false);
 	root = api_add_timeval(root, "Wait", &(stats->getwork_wait), false);
 	root = api_add_timeval(root, "Max", &(stats->getwork_wait_max), false);
 	root = api_add_timeval(root, "Min", &(stats->getwork_wait_min), false);
-
+  #if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	} 
+	#endif
 	if (pool_stats) {
 		root = api_add_uint32(root, "Pool Calls", &(pool_stats->getwork_calls), false);
 		root = api_add_uint32(root, "Pool Attempts", &(pool_stats->getwork_attempts), false);
@@ -3219,6 +3272,10 @@ static int itemstats(struct io_data *io_data, int i, char *id, struct cgminer_st
 
 	if (cgpu) {
 #ifdef USE_USBUTILS
+	#if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	if(is_hex == NULL) {
+	#endif
+	
 		char details[256];
 
 		if (cgpu->usbinfo.pipe_count)
@@ -3272,6 +3329,10 @@ static int itemstats(struct io_data *io_data, int i, char *id, struct cgminer_st
 		}
 
 		root = api_add_string(root, "USB tmo", details, true);
+ #if defined(USE_HEXMINERA) || defined(USE_HEXMINERB) || defined(USE_HEXMINERC) || defined(USE_HEXMINERU) || defined(USE_HEXMINERM) || defined(USE_HEXMINER8) || defined(USE_HEXMINER3)
+	}
+ #endif
+	
 #endif
 	}
 
@@ -4921,7 +4982,11 @@ void api(int api_thr_id)
 										break;
 									}
 								}
+	#if LOCK_TRACKING
+	if (ISPRIVGROUP(group) || strstr(COMMANDS(group), cmdbuf) || 1)
+	#else
 								if (ISPRIVGROUP(group) || strstr(COMMANDS(group), cmdbuf))
+	#endif
 									(cmds[i].func)(io_data, c, param, isjson, group);
 								else {
 									message(io_data, MSG_ACCDENY, 0, cmds[i].name, isjson);
